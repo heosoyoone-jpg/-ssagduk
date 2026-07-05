@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="싹둑은 인스타그램 9분할, 3분할, 2분할 이미지를 클릭 한 번으로 만들어주는 무료 온라인 이미지 분할 도구입니다. 화질 저하 없이 즉시 분할, ZIP으로 한 번에 다운로드." />
+  <meta name="keywords" content="이미지 분할, 인스타그램 분할, 9분할, 3분할, 인스타 피드 분할, 이미지 자르기, 무료 이미지 편집" />
+  <title>싹둑 ✂️ — 무료 이미지 분할기 | 인스타그램 9분할·3분할·2분할</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#FFE000',
+            'brand-hover': '#F5D400',
+            ink: '#111111',
+            muted: '#6B7280',
+            surface: '#F9F9F7',
+            card: '#FFFFFF',
+          },
+          fontFamily: {
+            sans: ['Noto Sans KR', 'sans-serif'],
+          },
+          boxShadow: {
+            'yellow-glow': '0 8px 32px rgba(255,224,0,0.45)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background-color: #F9F9F7; color: #111111; }
+
+    /* 가위 흔들림 */
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(-8deg) scale(1); }
+      40%       { transform: rotate(6deg) scale(1.18); }
+      70%       { transform: rotate(-4deg) scale(1.1); }
+    }
+    .scissor-anim { display: inline-block; animation: wiggle 2.8s ease-in-out infinite; transform-origin: 60% 60%; }
+
+    /* 드롭존 */
+    .dropzone {
+      border: 2.5px dashed #D1D5DB;
+      transition: border-color .2s ease, background-color .2s ease;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: #FFE000;
+      background-color: #FFFDE7;
+    }
+
+    /* 액션 버튼 */
+    .action-btn {
+      transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease;
+    }
+    .action-btn:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(255,224,0,.45); }
+    .action-btn:active { transform: translateY(0); }
+
+    /* 결과 카드 */
+    .result-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .result-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.1); }
+
+    /* 개별 다운로드 버튼 — hover 시 등장 */
+    .result-card .dl-btn { opacity: 0; transition: opacity .18s; }
+    .result-card:hover .dl-btn { opacity: 1; }
+
+    /* 슬라이스 카드 등장 */
+    @keyframes pop-in {
+      from { opacity: 0; transform: scale(.88); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .pop-in { animation: pop-in .28s ease both; }
+
+    /* 스피너 */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin .75s linear infinite; }
+
+    /* 페이드업 */
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fade-up .45s ease both; }
+
+    /* ZIP 버튼 */
+    .zip-btn { transition: transform .18s ease, box-shadow .18s ease; }
+    .zip-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(255,224,0,.55); }
+    .zip-btn:active { transform: translateY(0); }
+    .zip-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* 토스트 */
+    @keyframes toast-show { from { opacity:0; transform:translate(-50%,8px); } to { opacity:1; transform:translate(-50%,0); } }
+    @keyframes toast-hide { from { opacity:1; } to { opacity:0; } }
+    .toast-in  { animation: toast-show .25s ease forwards; }
+    .toast-out { animation: toast-hide .25s ease forwards; }
+
+    /* AdSense 플레이스홀더 */
+    .ad-placeholder {
+      background: #F3F4F6;
+      border: 1.5px dashed #D1D5DB;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: #9CA3AF;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    /* 아티클 본문 */
+    .article-body p { line-height: 1.85; color: #374151; }
+    .article-body h2 { font-size: 1.35rem; font-weight: 900; color: #111111; margin-bottom: .6rem; }
+    .article-body h3 { font-size: 1.05rem; font-weight: 700; color: #111111; margin-bottom: .4rem; }
+
+    /* 노란 밑줄 강조 */
+    .hl {
+      background: linear-gradient(transparent 55%, #FFE000 55%);
+      padding-bottom: 1px;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+  <!-- ══════════════════════════════════════
+       ① 최상단 광고 배너 (728×90)
+  ══════════════════════════════════════ -->
+  <div class="w-full flex justify-center bg-white border-b border-gray-100 py-3 px-4">
+    <div class="ad-placeholder" style="width:100%;max-width:728px;height:90px;">
+      <span style="font-size:18px;">📢</span>
+      Google AdSense — 상단 배너 (728 × 90)
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       ② 헤더
+  ══════════════════════════════════════ -->
+  <header class="sticky top-0 z-40 bg-[#F9F9F7]/90 backdrop-blur-md border-b border-gray-100">
+    <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <a href="#" class="flex items-center gap-1.5 no-underline" aria-label="싹둑 홈">
+          <span class="text-2xl sm:text-3xl font-black tracking-tighter text-[#111111]">
+            싹둑<span class="scissor-anim ml-0.5" aria-hidden="true">✂️</span>
+          </span>
+        </a>
+        <span class="hidden sm:inline-flex items-center bg-[#FFE000] text-[#111111] text-[10px] font-black px-2.5 py-0.5 rounded-full">
+          100% 무료
+        </span>
+      </div>
+      <p class="text-[11px] sm:text-xs text-gray-400 font-medium hidden sm:block tracking-tight">
+        광고 없는 기능 · 무제한 사용 · 서버 전송 없음
+      </p>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════
+       ③ 히어로 + 워크스페이스
+  ══════════════════════════════════════ -->
+  <main id="app" class="max-w-3xl mx-auto px-4 sm:px-6">
+
+    <!-- 히어로 카피 -->
+    <section class="text-center pt-12 pb-8">
+      <h1 class="text-3xl sm:text-5xl font-black leading-snug sm:leading-tight mb-3">
+        복잡한 설정 없이,<br>
+        <span class="hl">클릭 한 번</span>으로 끝나는 이미지 분할
+      </h1>
+      <p class="text-gray-500 text-sm sm:text-base font-medium max-w-lg mx-auto leading-relaxed">
+        인스타그램 9분할·3분할·2분할을 화질 저하 없이 즉시 분할하고<br class="hidden sm:block">
+        ZIP 파일로 한 번에 다운로드하세요.
+      </p>
+    </section>
+
+    <!-- 업로드 드롭존 -->
+    <section id="upload-section" class="mb-6">
+      <div
+        id="dropzone"
+        class="dropzone rounded-3xl bg-white cursor-pointer flex flex-col items-center justify-center"
+        style="min-height:280px;"
+        role="button"
+        tabindex="0"
+        aria-label="이미지 업로드 영역"
+        onclick="document.getElementById('file-input').click()"
+        ondragover="handleDragOver(event)"
+        ondragleave="handleDragLeave(event)"
+        ondrop="handleDrop(event)"
+        onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('file-input').click()"
+      >
+        <!-- 기본 상태 -->
+        <div id="dz-default" class="flex flex-col items-center gap-3 py-12 px-6 text-center">
+          <div class="w-20 h-20 rounded-2xl bg-[#FFE000] flex items-center justify-center text-4xl shadow-lg shadow-yellow-200">
+            🖼️
+          </div>
+          <div>
+            <p class="text-base sm:text-lg font-bold text-[#111111] mb-1">이미지를 이곳에 끌어다 놓거나</p>
+            <p class="text-gray-400 font-medium text-sm">클릭해서 업로드하세요</p>
+          </div>
+          <p class="text-xs text-gray-300 font-medium">JPG · PNG · WEBP · GIF | 파일 크기 제한 없음</p>
+        </div>
+
+        <!-- 미리보기 상태 (숨김) -->
+        <div id="dz-preview" class="hidden w-full flex-col items-center gap-4 p-6">
+          <div class="relative w-full max-w-xs mx-auto">
+            <img id="preview-img" src="" alt="업로드된 이미지 미리보기"
+              class="w-full rounded-2xl object-contain max-h-56 shadow-md" />
+            <button
+              onclick="resetAll(event)"
+              class="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white text-xs font-bold px-3 py-1 rounded-full transition"
+              aria-label="이미지 다시 선택"
+            >✕ 다시 선택</button>
+          </div>
+          <p id="file-info" class="text-xs text-gray-400 font-medium text-center"></p>
+        </div>
+      </div>
+
+      <input type="file" id="file-input" accept="image/*" class="hidden" onchange="handleFileSelect(event)" />
+    </section>
+
+    <!-- 액션 버튼 (이미지 로드 후 표시) -->
+    <section id="action-section" class="hidden fade-up mb-8">
+      <p class="text-center text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">분할 방식 선택</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+        <!-- 2분할 -->
+        <button class="action-btn bg-white border-2 border-gray-100 hover:border-[#FFE000] rounded-2xl p-5 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFE000]"
+          onclick="splitImage(2,1)" aria-label="2분할">
+          <div class="text-3xl mb-3">↔️</div>
+          <p class="font-black text-lg text-[#111111] mb-0.5">2분할</p>
+          <p class="text-xs text-gray-400 font-medium mb-3">가로 슬라이드용</p>
+          <div class="flex gap-1">
+            <div class="h-7 flex-1 bg-[#FFE000]/30 group-hover:bg-[#FFE000]/70 rounded-md transition-colors"></div>
+            <div class="h-7 flex-1 bg-[#FFE000]/30 group-hover:bg-[#FFE000]/70 rounded-md transition-colors"></div>
+          </div>
+        </button>
+
+        <!-- 3분할 -->
+        <button class="action-btn bg-white border-2 border-gray-100 hover:border-[#FFE000] rounded-2xl p-5 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFE000]"
+          onclick="splitImage(3,1)" aria-label="3분할">
+          <div class="text-3xl mb-3">📱</div>
+          <p class="font-black text-lg text-[#111111] mb-0.5">3분할</p>
+          <p class="text-xs text-gray-400 font-medium mb-3">인스타 1줄 피드용</p>
+          <div class="flex gap-1">
+            <div class="h-7 flex-1 bg-[#FFE000]/30 group-hover:bg-[#FFE000]/70 rounded-md transition-colors"></div>
+            <div class="h-7 flex-1 bg-[#FFE000]/30 group-hover:bg-[#FFE000]/70 rounded-md transition-colors"></div>
+            <div class="h-7 flex-1 bg-[#FFE000]/30 group-hover:bg-[#FFE000]/70 rounded-md transition-colors"></div>
+          </div>
+        </button>
+
+        <!-- 9분할 -->
+        <button class="action-btn bg-[#FFE000] border-2 border-[#FFE000] hover:bg-[#F5D400] hover:border-[#F5D400] rounded-2xl p-5 text-left group relative overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-[#111111]"
+          onclick="splitImage(3,3)" aria-label="9분할">
+          <span class="absolute top-2.5 right-2.5 text-[9px] font-black bg-[#111111] text-white px-2 py-0.5 rounded-full tracking-wide">인기</span>
+          <div class="text-3xl mb-3">🔲</div>
+          <p class="font-black text-lg text-[#111111] mb-0.5">9분할</p>
+          <p class="text-xs text-[#111111]/50 font-medium mb-3">인스타 3×3 피드용</p>
+          <div class="grid grid-cols-3 gap-0.5">
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+            <div class="h-4 bg-[#111111]/15 group-hover:bg-[#111111]/25 rounded-sm transition-colors"></div>
+          </div>
+        </button>
+
+      </div>
+    </section>
+
+    <!-- 로딩 -->
+    <div id="loading-section" class="hidden text-center py-16">
+      <div class="inline-flex items-center gap-3">
+        <div class="spinner w-7 h-7 rounded-full border-4 border-[#FFE000] border-t-transparent"></div>
+        <span class="text-base font-bold text-gray-500">이미지를 싹둑 자르는 중…</span>
+      </div>
+    </div>
+
+    <!-- 결과 영역 -->
+    <section id="result-section" class="hidden fade-up pb-2">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-black text-[#111111]">✅ 분할 완료!</h2>
+          <p id="result-desc" class="text-xs text-gray-400 font-medium mt-0.5"></p>
+        </div>
+        <button onclick="resetAll(null)"
+          class="text-xs text-gray-400 hover:text-[#111111] font-bold underline underline-offset-4 transition">
+          처음부터
+        </button>
+      </div>
+
+      <!-- 그리드 -->
+      <div id="result-grid" class="gap-2"></div>
+
+      <!-- ZIP 다운로드 버튼 -->
+      <div class="mt-8 mb-4 text-center">
+        <button id="zip-btn" onclick="downloadZip()"
+          class="zip-btn inline-flex items-center gap-3 bg-[#FFE000] hover:bg-[#F5D400] text-[#111111] font-black text-base sm:text-lg px-10 py-4 rounded-full shadow-lg shadow-yellow-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300">
+          <span class="text-xl">📦</span>
+          전체 ZIP으로 다운로드
+        </button>
+        <p class="text-[10px] text-gray-300 mt-2 font-medium">ssagduk_slice_1.jpg, slice_2.jpg … 형태로 저장됩니다</p>
+      </div>
+
+      <!-- ▼ 하단 광고 (336×280) -->
+      <div class="flex justify-center my-8">
+        <div class="ad-placeholder" style="width:336px;height:280px;max-width:100%;">
+          <span style="font-size:24px;">📢</span>
+          Google AdSense<br>하단 배너 (336 × 280)
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ══════════════════════════════════════
+       ④ SEO 아티클 영역
+  ══════════════════════════════════════ -->
+  <article class="max-w-3xl mx-auto px-4 sm:px-6 pt-12 pb-16 border-t border-gray-200 mt-8">
+    <div class="article-body space-y-8">
+
+      <header>
+        <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">사용 가이드 &amp; 활용 팁</p>
+        <h2 style="font-size:1.55rem;font-weight:900;line-height:1.35;color:#111111;margin-bottom:.75rem;">
+          인스타그램 3×3 피드 분할,<br>
+          <span class="hl">싹둑</span>으로 1초 만에 해결하는 방법
+        </h2>
+      </header>
+
+      <section>
+        <h3>왜 이미지를 분할해서 올려야 할까요?</h3>
+        <p>
+          인스타그램과 스레드(Threads)에서 콘텐츠를 운영하다 보면, 하나의 넓은 이미지나 인포그래픽을 여러 장의 슬라이드로 잘라 올리는 '분할 피드' 기법을 흔히 보게 됩니다.
+          이 방식은 단순히 보기 좋은 것을 넘어, 실질적인 마케팅 효과를 가집니다.
+          팔로워가 카드를 한 장씩 넘기는 과정에서 체류 시간이 늘어나고, 알고리즘이 '관심도 높은 콘텐츠'로 인식해 더 많은 노출을 이끌어내기 때문입니다.
+          특히 3분할(1×3) 또는 9분할(3×3) 형태로 업로드된 게시물은 프로필 피드에서 하나의 커다란 파노라마처럼 보이는 시각적 임팩트를 만들어내, 첫 방문자의 팔로우 전환율을 높이는 데 효과적입니다.
+        </p>
+      </section>
+
+      <section>
+        <h3>기존 도구의 문제점과 싹둑의 차별점</h3>
+        <p>
+          기존의 이미지 분할 도구들은 대부분 두 가지 문제를 안고 있습니다. 하나는 사용량 제한과 광고, 다른 하나는 서버에 이미지를 업로드하는 과정에서 발생하는 개인 정보 우려입니다.
+          싹둑은 이 두 가지를 모두 해결합니다. 모든 이미지 처리는 100% 브라우저 내에서 Canvas API를 통해 이루어지기 때문에, 여러분의 이미지는 절대 외부 서버로 전송되지 않습니다.
+          회원 가입도, 로그인도, 설치도 필요 없습니다. 페이지를 열고, 이미지를 끌어다 놓고, 버튼 하나만 누르면 원본 화질 그대로 분할된 이미지를 ZIP으로 받아볼 수 있습니다.
+        </p>
+      </section>
+
+      <section>
+        <h3>싹둑 3단계 사용법 — 30초면 충분합니다</h3>
+        <p>
+          사용 방법은 매우 단순합니다. 먼저 분할하고 싶은 이미지를 업로드 영역에 드래그하거나 클릭해서 선택합니다.
+          그 다음 원하는 분할 방식을 선택하세요. 가로 슬라이드 콘텐츠라면 <strong>2분할</strong>, 인스타 카드뉴스 스타일은 <strong>3분할</strong>, 프로필 피드 전체를 채우는 파노라마 효과를 원한다면 <strong>9분할(3×3)</strong>이 적합합니다.
+          버튼을 클릭하면 즉시 분할된 이미지들이 화면에 그리드 형태로 표시되고, '전체 ZIP으로 다운로드' 버튼 하나로 모든 파일을 압축해서 받을 수 있습니다.
+          각 조각에 마우스를 올리면 개별 파일을 따로 저장하는 것도 가능합니다.
+        </p>
+      </section>
+
+      <section>
+        <h3>어떤 콘텐츠에 가장 잘 어울리나요?</h3>
+        <p>
+          싹둑은 인스타그램 운영자뿐 아니라 블로그 운영자, 유튜브 썸네일 제작자, 온라인 쇼핑몰 상세페이지 제작자 등 다양한 크리에이터에게 유용합니다.
+          긴 인포그래픽을 여러 장의 블로그 이미지로 나누거나, 넓은 배너 이미지를 두 장의 가로 슬라이드로 분리하는 데도 손쉽게 활용할 수 있습니다.
+          JPEG(최고 품질 95%) 형태로 저장되므로 화질 열화 없이 원본에 가까운 결과물을 얻을 수 있습니다.
+          별도의 그래픽 프로그램 없이도 전문가 수준의 분할 작업이 가능하다는 것, 그것이 싹둑이 존재하는 이유입니다.
+        </p>
+      </section>
+
+    </div>
+  </article>
+
+  <!-- ══════════════════════════════════════
+       ⑤ 푸터
+  ══════════════════════════════════════ -->
+  <footer class="border-t border-gray-200 bg-white">
+    <div class="max-w-5xl mx-auto px-5 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-1.5">
+        <span class="text-xl font-black tracking-tight">싹둑</span>
+        <span class="scissor-anim text-xl" aria-hidden="true">✂️</span>
+        <span class="ml-2 text-xs text-gray-300 font-medium">© 2025 Ssagduk</span>
+      </div>
+      <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="푸터 네비게이션">
+        <a href="#" class="text-xs text-gray-400 hover:text-[#111111] font-medium underline underline-offset-4 transition">개인정보처리방침</a>
+        <a href="#" class="text-xs text-gray-400 hover:text-[#111111] font-medium underline underline-offset-4 transition">이용약관</a>
+        <a href="mailto:hello@ssagduk.com" class="text-xs text-gray-400 hover:text-[#111111] font-medium underline underline-offset-4 transition">이메일 문의</a>
+      </nav>
+      <p class="text-[10px] text-gray-300 font-medium text-center sm:text-right">
+        모든 처리는 브라우저 내에서만 이루어집니다 🔒
+      </p>
+    </div>
+  </footer>
+
+  <!-- 토스트 -->
+  <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-[#111111] text-white text-sm font-bold px-6 py-3 rounded-full shadow-2xl z-50 hidden whitespace-nowrap"></div>
+
+  <!-- ══════════════════════════════════════
+       JAVASCRIPT
+  ══════════════════════════════════════ -->
+  <script>
+    'use strict';
+
+    let uploadedImage = null;
+    let slicedBlobs   = [];
+    let currentCols   = 0;
+    let currentRows   = 0;
+
+    /* ── 유틸 ── */
+    function $(id) { return document.getElementById(id); }
+
+    function showToast(msg, ms = 2500) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden', 'toast-out');
+      el.classList.add('toast-in');
+      setTimeout(() => {
+        el.classList.add('toast-out');
+        setTimeout(() => el.classList.add('hidden'), 260);
+      }, ms);
+    }
+
+    function fmtBytes(b) {
+      if (b < 1024)    return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+
+    /* ── 드래그 & 드롭 ── */
+    function handleDragOver(e) {
+      e.preventDefault();
+      $('dropzone').classList.add('drag-over');
+    }
+    function handleDragLeave() {
+      $('dropzone').classList.remove('drag-over');
+    }
+    function handleDrop(e) {
+      e.preventDefault();
+      $('dropzone').classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) loadImageFile(file);
+      else showToast('⚠️ 이미지 파일만 업로드할 수 있어요.');
+    }
+
+    /* ── 파일 선택 ── */
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) loadImageFile(file);
+    }
+
+    /* ── 이미지 로드 ── */
+    function loadImageFile(file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          uploadedImage = img;
+          $('preview-img').src = ev.target.result;
+          $('file-info').textContent =
+            `${file.name}  ·  ${img.width} × ${img.height} px  ·  ${fmtBytes(file.size)}`;
+
+          // 드롭존 전환
+          $('dz-default').classList.add('hidden');
+          $('dz-preview').classList.remove('hidden');
+          $('dz-preview').classList.add('flex');
+
+          // 액션 버튼 표시
+          $('action-section').classList.remove('hidden');
+
+          // 이전 결과 숨김
+          $('result-section').classList.add('hidden');
+          slicedBlobs = [];
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /* ── 이미지 분할 ── */
+    function splitImage(cols, rows) {
+      if (!uploadedImage) return;
+      currentCols = cols;
+      currentRows = rows;
+      slicedBlobs = [];
+
+      $('loading-section').classList.remove('hidden');
+      $('result-section').classList.add('hidden');
+
+      setTimeout(() => {
+        const img    = uploadedImage;
+        const sliceW = Math.floor(img.width  / cols);
+        const sliceH = Math.floor(img.height / rows);
+        const total  = cols * rows;
+        const done   = new Array(total);
+        let   count  = 0;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const idx    = r * cols + c;
+            const canvas = document.createElement('canvas');
+            canvas.width  = sliceW;
+            canvas.height = sliceH;
+            canvas.getContext('2d').drawImage(
+              img,
+              c * sliceW, r * sliceH, sliceW, sliceH,
+              0, 0, sliceW, sliceH
+            );
+            canvas.toBlob((blob) => {
+              done[idx] = blob;
+              if (++count === total) {
+                slicedBlobs = done;
+                $('loading-section').classList.add('hidden');
+                renderResults(cols, rows, sliceW, sliceH);
+              }
+            }, 'image/jpeg', 0.95);
+          }
+        }
+      }, 40);
+    }
+
+    /* ── 결과 렌더링 ── */
+    function renderResults(cols, rows, sliceW, sliceH) {
+      const label =
+        cols === 2 ? '2분할 (가로 슬라이드용)' :
+        rows === 1 ? '3분할 (인스타 1줄 피드용)' :
+                     '9분할 (인스타 3×3 피드용)';
+
+      $('result-desc').textContent =
+        `${label} · 조각 크기 ${sliceW} × ${sliceH} px`;
+
+      const grid = $('result-grid');
+      grid.innerHTML = '';
+      grid.style.cssText = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;`;
+
+      slicedBlobs.forEach((blob, i) => {
+        const url  = URL.createObjectURL(blob);
+        const card = document.createElement('div');
+        card.className = 'result-card relative rounded-xl overflow-hidden bg-white border border-gray-100 shadow-sm pop-in';
+        card.style.animationDelay = `${i * 35}ms`;
+
+        // 이미지
+        const imgEl = document.createElement('img');
+        imgEl.src   = url;
+        imgEl.alt   = `분할 이미지 조각 ${i + 1}`;
+        imgEl.style.cssText = 'display:block;width:100%;aspect-ratio:1/1;object-fit:cover;';
+
+        // 번호 뱃지
+        const badge = document.createElement('div');
+        badge.className = 'absolute top-2 left-2 bg-black/55 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm';
+        badge.textContent = `#${i + 1}`;
+
+        // 개별 저장 버튼
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'dl-btn absolute bottom-2 right-2 bg-[#FFE000] hover:bg-[#F5D400] text-[#111111] text-[10px] font-black px-2.5 py-1 rounded-full shadow transition';
+        dlBtn.textContent = '⬇ 저장';
+        dlBtn.setAttribute('aria-label', `조각 ${i + 1} 개별 저장`);
+        dlBtn.onclick = (e) => {
+          e.stopPropagation();
+          const a = document.createElement('a');
+          a.href     = url;
+          a.download = `ssagduk_slice_${i + 1}.jpg`;
+          a.click();
+        };
+
+        card.append(imgEl, badge, dlBtn);
+        grid.appendChild(card);
+      });
+
+      const resultSection = $('result-section');
+      resultSection.classList.remove('hidden');
+      setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
+
+    /* ── ZIP 다운로드 ── */
+    async function downloadZip() {
+      if (!slicedBlobs.length) return;
+      const btn = $('zip-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="text-xl">⏳</span> 압축 중…';
+
+      try {
+        const zip    = new JSZip();
+        const folder = zip.folder('싹둑_이미지분할');
+        slicedBlobs.forEach((blob, i) => folder.file(`ssagduk_slice_${i + 1}.jpg`, blob));
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        const a       = document.createElement('a');
+        a.href     = URL.createObjectURL(content);
+        a.download = `싹둑_${currentCols}x${currentRows}분할.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('🎉 ZIP 다운로드 완료!');
+      } catch (err) {
+        showToast('❌ 다운로드 중 오류가 발생했어요.');
+        console.error(err);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '<span class="text-xl">📦</span> 전체 ZIP으로 다운로드';
+    }
+
+    /* ── 리셋 ── */
+    function resetAll(e) {
+      if (e) e.stopPropagation();
+      uploadedImage = null;
+      slicedBlobs   = [];
+
+      $('file-input').value = '';
+      $('preview-img').src  = '';
+      $('dz-default').classList.remove('hidden');
+      $('dz-preview').classList.add('hidden');
+      $('dz-preview').classList.remove('flex');
+      $('action-section').classList.add('hidden');
+      $('result-section').classList.add('hidden');
+      $('loading-section').classList.add('hidden');
+      $('result-grid').innerHTML = '';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
